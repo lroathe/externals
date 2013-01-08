@@ -166,6 +166,9 @@ module Externals
         raise "No such directory: #{dir}" unless File.exists?(dir) && File.directory?(dir)
         main_options[:workdir] = dir
       }
+      opts.on("--all", "-a", String,
+        *"If you want to freeze all submodule"
+      ) {|all| sub_options[:all] = true}
       opts.on(
         "--help", *"does the same as 'ext help'  If you use this with a command
         it will ignore the command and run help instead.".lines_by_width(summary_width)
@@ -374,6 +377,17 @@ Please use
     end
 
     def freeze args, options
+      all ||= options[:all]
+      if all
+        subprojects.each do |p|
+          freeze_subproject [p.path], options
+        end
+      else
+        puts "IN ELSE"
+      end
+    end
+
+    def freeze_subproject args, options
       project = subproject_by_name_or_path(args[0])
 
       raise "No such project named #{args[0]}" unless project
