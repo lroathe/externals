@@ -389,15 +389,14 @@ Please use
 
     def freeze_subproject args, options
       project = subproject_by_name_or_path(args[0])
-
       raise "No such project named #{args[0]}" unless project
-
       revision = args[1] || project.current_revision
       section = configuration[project.path]
-      branch = project.current_branch
-      if branch
-        section[:branch] = branch
-      end
+
+      branch = section[:branch]
+      branch ||= project.current_branch
+      branch ||= options[:branch]
+
       section[:revision] = revision
       configuration.write '.externals'
       reload_configuration
