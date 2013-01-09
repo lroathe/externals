@@ -167,7 +167,7 @@ module Externals
         main_options[:workdir] = dir
       }
       opts.on("--all", "-a", String,
-        *"If you want to freeze all submodule"
+        *"If you want to freeze or unfreeze all submodule"
       ) {|all| sub_options[:all] = true}
       opts.on(
         "--help", *"does the same as 'ext help'  If you use this with a command
@@ -383,7 +383,7 @@ Please use
           freeze_subproject [p.path], options
         end
       else
-        puts "IN ELSE"
+        freeze_subproject args, options
       end
     end
 
@@ -393,16 +393,10 @@ Please use
       raise "No such project named #{args[0]}" unless project
 
       revision = args[1] || project.current_revision
-
       section = configuration[project.path]
-
-      if section[:branch]
-        branch = project.current_branch
-        if branch
-          section[:branch] = branch
-        else
-          section.rm_setting :branch
-        end
+      branch = project.current_branch
+      if branch
+        section[:branch] = branch
       end
       section[:revision] = revision
       configuration.write '.externals'
@@ -412,6 +406,18 @@ Please use
     end
 
     def unfreeze args, options
+      all ||= options[:all]
+      if all
+        subprojects.each do |p|
+          unfreeze_subproject [p.path], options
+        end
+      else
+        unfreeze_subproject args, options
+      end
+    end
+
+
+    def unfreeze_subproject args, options
       project = subproject_by_name_or_path(args[0])
 
       raise "No such project named #{args[0]}" unless project
