@@ -397,6 +397,9 @@ Please use
       branch ||= project.current_branch
       branch ||= options[:branch]
 
+      if branch
+        section[:branch] = branch
+      end
       section[:revision] = revision
       configuration.write '.externals'
       reload_configuration
