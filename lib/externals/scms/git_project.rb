@@ -57,7 +57,8 @@ module Externals
         do_fetch command
       end
 
-
+      puts '--------------------BRANCH:'
+      puts branch
       if branch
         cb = current_branch
 
@@ -151,6 +152,20 @@ module Externals
       opts = resolve_opts(command)
       `git #{opts} fetch`
       raise unless $? == 0
+    end
+
+    def rc *args
+
+      project_path = if path == "."
+        name || "."
+      else
+        path
+      end
+      Dir.chdir project_path do
+        puts "Output for: #{path} -- '#{args[1][:command]}'"
+	puts `#{args[1][:command]}`
+        puts "\n"
+      end
     end
 
     def do_up command

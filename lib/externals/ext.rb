@@ -34,7 +34,8 @@ module Externals
           only checks out subprojects."],
     [:ex, "Like export, but skips the main project."],
     [:st, "Like status, but skips the main project."],
-    [:up, "Like update, but skips the main project."]
+    [:up, "Like update, but skips the main project."],
+    [:rc, "Runs a command on subprojects, must specify repo type"]
   ]
   MAIN_COMMANDS_HASH = [
     [:freeze, "ext freeze <subproject> [REVISION]",
@@ -166,6 +167,10 @@ module Externals
         raise "No such directory: #{dir}" unless File.exists?(dir) && File.directory?(dir)
         main_options[:workdir] = dir
       }
+      opts.on("--command COMMAND", "-c COMMAND",
+        String,
+        *"Use in conjuction with rc.  Runs a given command on all subrepos.".lines_by_width(summary_width)
+      ) {|command| sub_options[:command] = command}
       opts.on("--all", "-a", String,
         *"If you want to freeze or unfreeze all submodule"
       ) {|all| sub_options[:all] = true}
@@ -371,7 +376,7 @@ Please use
 
           project.send command_name, args, options
         else
-          subprojects.each {|p| p.send(*([command_name, args, options].flatten))}
+          subprojects.each {|p| p.send(command_name, args, options)}
         end
       end
     end
