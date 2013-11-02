@@ -9,24 +9,24 @@ Dir.entries(File.join(File.dirname(__FILE__), 'extensions')).each do |extension|
 end
 
 module Externals
-  VERSION = '1.0.6'
+  VERSION = '1.1.2'
   PROJECT_TYPES_DIRECTORY = File.join(File.dirname(__FILE__), '..', 'externals','project_types')
 
   # Full commands operate on the main project as well as the externals
   # short commands only operate on the externals
   # Main commands only operate on the main project
   FULL_COMMANDS_HASH = [
-    [:checkout, "ext checkout <repository>", %{
-      Checks out <repository>, and checks out any subprojects
+    [:checkout, "ext checkout <repository>",
+      %{Checks out <repository>, and checks out any subprojects
       registered in <repository>'s .externals file.}],
-    [:export, "ext export <repository>", %{
-      Like checkout except this command fetches as little
+    [:export, "ext export <repository>",
+      %{Like checkout except this command fetches as little
       history as possible.}],
-    [:status, "ext status", %{
-      Prints out the status of the main project, followed by
+    [:status, "ext status",
+      %{Prints out the status of the main project, followed by
       the status of each subproject.}],
-    [:update, "ext update", %{
-      Brings the main project, and all subprojects, up to the
+    [:update, "ext update",
+      %{Brings the main project, and all subprojects, up to the
       latest version.}]
   ]
   SHORT_COMMANDS_HASH = [
@@ -37,10 +37,10 @@ module Externals
     [:up, "Like update, but skips the main project."]
   ]
   MAIN_COMMANDS_HASH = [
-    [:freeze, "ext freeze project [REVISION]", %{
-      Locks a subproject into a specific revision/branch.  If no
+    [:freeze, "ext freeze <subproject> [REVISION]",
+      %{Locks a subproject into a specific revision/branch.  If no
       revision is supplied, the current revision/branch of the
-      project will be used.  You can specify the project by name
+      project will be used.  You can specify the subproject by name
       or path.}],
     [:help, "You probably just ran this command just now."],
     [:init, "Creates a .externals file containing only [main]
@@ -63,6 +63,9 @@ module Externals
       top and adds a .emptydir file to any empty directories it
       comes across.  Useful for dealing with SCMs that refuse to
       track empty directories (such as git, for example)"],
+    [:unfreeze, "ext unfreeze <subproject>",
+      %{Unfreezes a previously frozen subproject.  You can specify
+      the subproject by name or path.}],
     [:uninstall, "ext uninstall [-f|--force_removal] <project>",
       "Removes a subproject from being tracked by ext.  If you
       want the files associated with this subproject deleted as well
@@ -109,8 +112,6 @@ module Externals
         /^(.*)\.rb$/.match(type)[1]
       end
     end
-
-    #puts "Project types available: #{project_types.join(' ')}"
 
     def self.project_type_files
       project_types.map do |project_type|
@@ -312,7 +313,6 @@ module Externals
       scm = configuration['.']
       scm = scm['scm'] if scm
       scm ||= options[:scm]
-      #scm ||= infer_scm(repository)
 
       type = configuration['.']
       type = type['type'] if type
@@ -338,18 +338,6 @@ Please use
       end
     end
 
-    def self.project_class(scm)
-      Externals.module_eval("#{scm.to_s.cap_first}Project", __FILE__, __LINE__)
-    end
-
-    def self.project_classes
-      retval = []
-      registered_scms.each do |scm|
-        retval << project_class(scm)
-      end
-
-      retval
-    end
     def self.project_class(scm)
       Externals.module_eval("#{scm.to_s.cap_first}Project", __FILE__, __LINE__)
     end
@@ -392,12 +380,10 @@ Please use
 
       revision = args[1] || project.current_revision
 
-      branch = if project.freeze_involves_branch?
-        project.current_branch
-      end
-
       section = configuration[project.path]
+
       if section[:branch]
+        branch = project.current_branch
         if branch
           section[:branch] = branch
         else
@@ -405,6 +391,25 @@ Please use
         end
       end
       section[:revision] = revision
+      configuration.write '.externals'
+      reload_configuration
+
+      subproject_by_name_or_path(args[0]).up
+    end
+
+    def unfreeze args, options
+      project = subproject_by_name_or_path(args[0])
+
+      raise "No such project named #{args[0]}" unless project
+
+      section = configuration[project.path]
+
+      unless section[:revision]
+        puts "Uhh... #{project.name} wasn't frozen, so I can't unfreeze it."
+        exit
+      end
+
+      section.rm_setting :revision
       configuration.write '.externals'
       reload_configuration
 
@@ -456,7 +461,6 @@ that you are installing. Use an option to specify it
     end
 
     def uninstall args, options
-      #init args, options unless File.exists? '.externals'
       raise "Hmm... there's no .externals file in this directory." if !File.exists? '.externals'
 
       project = subproject_by_name_or_path(args[0])
@@ -478,9 +482,6 @@ that you are installing. Use an option to specify it
     end
 
     def update_ignore args, options
-      #path = args[0]
-
-
       scm = configuration['.']
       scm = scm['scm'] if scm
 
@@ -496,9 +497,7 @@ that you are installing. Use an option to specify it
       raise "only makes sense for main project" unless project.main_project?
 
       subprojects.each do |subproject|
-        #puts "about to add #{subproject.path} to ignore"
         project.update_ignore subproject.path
-        #puts "finished adding #{subproject.path}"
       end
     end
 
@@ -535,11 +534,7 @@ that you are installing. Use an option to specify it
 
     def status args, options
       options ||= {}
-      #repository = "."
-      #path = "."
-      #main_project = nil
       scm = options[:scm]
-      #scm ||= infer_scm(repository)
 
       if !scm
         scm ||= configuration['.']
@@ -567,7 +562,6 @@ by creating the .externals file manually"
           (such as --git or --svn)"
       end
 
-      #main_project = self.class.project_class(scm).new("#{repository} #{path}", :is_main)
       project = main_project
       project.scm ||= scm
       project.st
@@ -641,9 +635,7 @@ commands below if you actually wish to delete them."
 
     def update args, options
       options ||= {}
-      #repository = args[0]
       scm = options[:scm]
-      #scm ||= infer_scm(repository)
 
       if !scm
         scm ||= configuration['.']
@@ -655,7 +647,6 @@ commands below if you actually wish to delete them."
           (such as --git or --svn)"
       end
 
-      #main_project = self.class.project_class(scm).new("#{repository} #{path}", :is_main)
       project = main_project
       project.scm ||= scm
       project.up
@@ -708,7 +699,7 @@ commands below if you actually wish to delete them."
           project_class.detected?
         end
 
-        raise "Could not determine this projects scm" if  possible_project_classes.empty?
+        raise "Could not determine this project's scm" if  possible_project_classes.empty?
         if possible_project_classes.size > 1
           raise "This project appears to be managed by multiple SCMs: #{
           possible_project_classes.map(&:to_s).join(',')}
@@ -739,7 +730,7 @@ Please use the --type option to tell ext which to use."
 
       config.add_empty_section '.'
 
-      # If we are using subversion, we should warn about not setting a branch
+      # TODO: If we are using subversion, we should warn about not setting a branch
       if scm == "svn"
         if options[:branch]
           config['.'][:repository] = SvnProject.extract_repository(
@@ -748,7 +739,6 @@ Please use the --type option to tell ext which to use."
           )
         elsif args[0]
           config['.'][:repository] = args[0].strip
-        else
         end
       end
 

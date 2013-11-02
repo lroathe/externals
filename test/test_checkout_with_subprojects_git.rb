@@ -1,18 +1,16 @@
 $:.unshift File.join(File.dirname(__FILE__), '..', 'lib') if $0 == __FILE__
-require 'externals/test_case'
+require 'ext_test_case'
 require 'externals/ext'
-require 'externals/test/rails_app_git_branches'
+require 'rails_app_git_branches'
 
 module Externals
   module Test
-    class TestCheckoutWithSubprojectsGit < TestCase
+    class TestCheckoutWithSubprojectsGit < ::Test::Unit::TestCase
       include ExtTestCase
 
       def test_checkout_with_subproject
         repository = RailsAppGitBranches.new
         repository.prepare
-
-        assert File.exists?(File.join(repository.clean_dir, "db"))
 
         workdir = File.join(root_dir, 'test', "tmp", "workdir", "branches", "git")
         mkdir_p workdir
@@ -127,8 +125,6 @@ module Externals
       def test_uninstall
         repository = RailsAppGitBranches.new
         repository.prepare
-
-        assert File.exists?(File.join(repository.clean_dir, "db"))
 
         workdir = File.join(root_dir, 'test', "tmp", "workdir", "branches", "uninstall", "git")
         mkdir_p workdir

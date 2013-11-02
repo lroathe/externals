@@ -1,18 +1,18 @@
 $:.unshift File.join(File.dirname(__FILE__), '..', 'lib') if $0 == __FILE__
-require 'externals/test_case'
+require 'ext_test_case'
 require 'externals/ext'
-require 'externals/test/basic_git_repository'
+require 'basic_git_repository'
 
 module Externals
   module Test
-    class TestInitGit < TestCase
+    class TestInitGit < ::Test::Unit::TestCase
       include ExtTestCase
 
       def test_init
         repository = BasicGitRepository.new
         repository.prepare
 
-        assert File.exists?(File.join(repository.clean_dir, ".git"))
+        assert File.exists?(repository.clean_dir)
 
         workdir = File.join(root_dir, 'test', "tmp", "workdir")
         mkdir_p workdir
@@ -20,7 +20,8 @@ module Externals
         Dir.chdir workdir do
           delete_if_dirty(repository.name)
           if !File.exists?(repository.name)
-            cp_a repository.clean_dir, "."
+            `git clone #{repository.clean_dir} #{repository.name}`
+            raise unless $? == 0
           end
 
           mark_dirty(repository.name)

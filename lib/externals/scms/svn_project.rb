@@ -8,10 +8,14 @@ module Externals
 
     public
     def co *args
-      # delete path if not empty
-      rmdir_ie path
+      # delete path if empty
+      rmdir_ie path unless path == "."
 
-      if File.exists? path
+      dest = path
+      dest = '' if dest == '.'
+      dest = "\"#{dest}\"" if dest && !dest.empty?
+
+      if File.exists? dest
         up
       else
         opts = resolve_opts "co"
@@ -23,7 +27,7 @@ module Externals
           url = [url, branch].join("/")
         end
 
-        puts(svncocmd = "svn #{opts} co #{url} #{path}")
+        puts(svncocmd = "svn #{opts} co #{url} #{dest}")
         puts `#{svncocmd}`
         unless $? == 0
           raise
@@ -39,13 +43,18 @@ module Externals
       if revision
         Dir.chdir path do
           puts `svn #{opts} up -r #{revision}`
+          raise unless $? == 0
         end
       end
     end
 
     def ex *args
-      # delete path if not empty
-      rmdir_ie path
+      # delete path if  empty
+      rmdir_ie path unless path == "."
+
+      dest = path
+      dest = '' if dest == '.'
+      dest = "\"#{dest}\"" if dest && !dest.empty?
 
       url = repository
 
@@ -58,12 +67,13 @@ module Externals
         url += "@#{revision}"
       end
 
-      puts(svncocmd = "svn #{scm_opts_ex} export #{url} #{path}")
+      puts(svncocmd = "svn #{scm_opts_ex} export #{url} #{dest}")
       puts `#{svncocmd}`
     end
 
     def switch branch_name, options = {}
       require_repository
+
       if current_branch != branch_name
         Dir.chdir path do
           url = [repository, branch_name].join("/")
@@ -149,7 +159,8 @@ module Externals
 
     def current_branch
       require_repository
-      branch = info_url.gsub(/\/+/, "/").gsub(repository.gsub(/\/+/, "/"), "")
+
+      branch = info_url.downcase.gsub(/\/+/, "/").gsub(repository.downcase.gsub(/\/+/, "/"), "")
       if branch == repository
         raise "Could not determine branch from URL #{info_url}.
     Does not appear have a substring of #{repository}"
@@ -177,7 +188,7 @@ module Externals
     def require_repository
       if repository.nil? || repository.empty?
         url = info_url
-        url = "svn+ssh://server/path/repository" unless url
+        info_url = "svn+ssh://server/path/repository" unless url
         puts "to use any branching features with a subversion project, the
 repository must be present in the .externals file.
 
@@ -267,10 +278,6 @@ repository = #{info_url}
       Dir.chdir path do
         self.class.info_url scm_opts
       end
-    end
-
-    def freeze_involves_branch?
-      false
     end
 
   end

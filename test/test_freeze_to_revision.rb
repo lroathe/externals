@@ -1,18 +1,20 @@
 $:.unshift File.join(File.dirname(__FILE__), '..', 'lib') if $0 == __FILE__
-require 'externals/test_case'
+require 'ext_test_case'
 require 'externals/ext'
-require 'externals/test/rails_app_git_repository'
+require 'rails_app_git_repository'
+require 'basic_git_repository'
+require 'modules_svn_branches_repository'
 
 module Externals
   module Test
-    class TestFreezeToRevision < TestCase
+    class TestFreezeToRevision < ::Test::Unit::TestCase
       include ExtTestCase
 
       def test_freeze_to_revision
         repository = RailsAppGitRepository.new
         repository.prepare
 
-        assert File.exists?(File.join(repository.clean_dir, ".git"))
+        assert File.exists?(repository.clean_dir)
 
         workdir = File.join(root_dir, 'test', "tmp", "workdir", "checkout", "git")
         mkdir_p workdir
@@ -63,6 +65,108 @@ module Externals
             %w(foreign_key_migrations redhillonrails_core acts_as_list).each do |proj|
               assert File.exists?(File.join('vendor', 'plugins', proj, 'lib'))
             end
+          end
+        end
+      end
+
+      def test_svn_freeze_with_branch
+        repository = BasicGitRepository.new
+        repository.prepare
+
+        sub_repository = ModulesSvnBranchesRepository.new
+        sub_repository.prepare
+
+        assert File.exists?(repository.clean_dir)
+
+        workdir = File.join(root_dir, 'test', "tmp", "workdir", "checkout", "git")
+        mkdir_p workdir
+
+        Dir.chdir workdir do
+          rm_r repository.name if File.exists? repository.name
+          source = repository.clean_dir
+
+          puts "About to checkout #{source}"
+          `git clone #{source}`
+          raise unless $? == 0
+
+
+          Dir.chdir repository.name do
+            Ext.run "init"
+
+            sub_source = sub_repository.clean_url
+            Ext.run "install", "--svn", sub_source, "-b", "branches/branch2", "modules"
+
+            ext = Ext.new
+            subproject = ext.subproject_by_name_or_path("modules")
+
+            assert_equal subproject.current_branch, "branches/branch2"
+            assert_equal subproject.current_revision, "4"
+
+            # let's freeze the revision to 3
+            Ext.run "freeze", "modules", "3"
+            assert_equal subproject.current_revision, "3"
+
+            # let's check this stuff in to test checking it out...
+            `git add .gitignore .externals`
+            raise unless $? == 0
+
+            repository.mark_dirty
+
+            `git commit -m "froze modules to revision 3"`
+            raise unless $? == 0
+            `git push`
+            raise unless $? == 0
+          end
+        end
+
+        rm_rf workdir
+        mkdir_p workdir
+
+        Dir.chdir workdir do
+          rm_r repository.name if File.exists? repository.name
+          source = repository.clean_dir
+
+          puts "About to checkout #{source}"
+          Ext.run "checkout", "--git", source
+
+          Dir.chdir repository.name do
+            ext = Ext.new
+            subproject = ext.subproject_by_name_or_path("modules")
+
+            assert_equal subproject.current_branch, "branches/branch2"
+            assert_equal subproject.current_revision, "3"
+
+            # now let's test unfreezing...
+            Ext.run "unfreeze", "modules"
+            assert_equal subproject.current_branch, "branches/branch2"
+            assert_equal subproject.current_revision, "4"
+
+            # Check it in to make sure it sticks
+            `git add .externals`
+            raise unless $? == 0
+            `git commit -m "unfreezing modules"`
+            raise unless $? == 0
+            `git push`
+            raise unless $? == 0
+          end
+        end
+
+        rm_rf workdir
+        mkdir_p workdir
+
+        Dir.chdir workdir do
+          rm_r repository.name if File.exists? repository.name
+          source = repository.clean_dir
+
+          puts "About to checkout #{source}"
+          Ext.run "checkout", "--git", source
+
+          Dir.chdir repository.name do
+            ext = Ext.new
+            subproject = ext.subproject_by_name_or_path("modules")
+
+            assert_equal subproject.current_branch, "branches/branch2"
+            assert_equal subproject.current_revision, "4"
           end
         end
       end

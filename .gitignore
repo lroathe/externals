@@ -5,3 +5,5 @@ tmp/*
 pkg/
 test/tmp
 doc/*
+.idea/
+coverage/

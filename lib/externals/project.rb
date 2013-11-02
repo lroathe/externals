@@ -37,10 +37,6 @@ module Externals
       path == '.'
     end
 
-    def freeze_involves_branch?
-      true
-    end
-
     def self.scm
       if self == Project
         raise "subclass responsibility"
@@ -119,17 +115,6 @@ module Externals
       if repository =~ /\/([\w_-]+)(?:\.git)?$/
         $1
       end
-    end
-
-    def parent_path
-      File.dirname path
-    end
-
-    def self.project_line? line
-      #Make sure it's not a comment
-      return false if line =~ /^\s*#/
-
-      line =~ PROJECT_LINE_REGEX
     end
 
     #test helper method
