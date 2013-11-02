@@ -34,7 +34,8 @@ module Externals
           only checks out subprojects."],
     [:ex, "Like export, but skips the main project."],
     [:st, "Like status, but skips the main project."],
-    [:up, "Like update, but skips the main project."]
+    [:up, "Like update, but skips the main project."],
+    [:rc, "Runs a command on subprojects, must specify repo type"]
   ]
   MAIN_COMMANDS_HASH = [
     [:freeze, "ext freeze <subproject> [REVISION]",
@@ -166,6 +167,13 @@ module Externals
         raise "No such directory: #{dir}" unless File.exists?(dir) && File.directory?(dir)
         main_options[:workdir] = dir
       }
+      opts.on("--command COMMAND", "-c COMMAND",
+        String,
+        *"Use in conjuction with rc.  Runs a given command on all subrepos.".lines_by_width(summary_width)
+      ) {|command| sub_options[:command] = command}
+      opts.on("--all", "-a", String,
+        *"If you want to freeze or unfreeze all submodule"
+      ) {|all| sub_options[:all] = true}
       opts.on(
         "--help", *"does the same as 'ext help'  If you use this with a command
         it will ignore the command and run help instead.".lines_by_width(summary_width)
@@ -368,27 +376,34 @@ Please use
 
           project.send command_name, args, options
         else
-          subprojects.each {|p| p.send(*([command_name, args, options].flatten))}
+          subprojects.each {|p| p.send(command_name, args, options)}
         end
       end
     end
 
     def freeze args, options
+      all ||= options[:all]
+      if all
+        subprojects.each do |p|
+          freeze_subproject [p.path], options
+        end
+      else
+        freeze_subproject args, options
+      end
+    end
+
+    def freeze_subproject args, options
       project = subproject_by_name_or_path(args[0])
-
       raise "No such project named #{args[0]}" unless project
-
       revision = args[1] || project.current_revision
-
       section = configuration[project.path]
 
-      if section[:branch]
-        branch = project.current_branch
-        if branch
-          section[:branch] = branch
-        else
-          section.rm_setting :branch
-        end
+      branch = section[:branch]
+      branch ||= project.current_branch
+      branch ||= options[:branch]
+
+      if branch
+        section[:branch] = branch
       end
       section[:revision] = revision
       configuration.write '.externals'
@@ -398,6 +413,18 @@ Please use
     end
 
     def unfreeze args, options
+      all ||= options[:all]
+      if all
+        subprojects.each do |p|
+          unfreeze_subproject [p.path], options
+        end
+      else
+        unfreeze_subproject args, options
+      end
+    end
+
+
+    def unfreeze_subproject args, options
       project = subproject_by_name_or_path(args[0])
 
       raise "No such project named #{args[0]}" unless project
